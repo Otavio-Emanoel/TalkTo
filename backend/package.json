@@ -1,0 +1,35 @@
+{
+  "name": "talkto",
+  "version": "1.0.0",
+  "description": "TalkTo é um aplicativo de mensagens moderno desenvolvido em Flutter, com backend em Node.js e banco de dados MongoDB Atlas. Ele permite que os usuários se cadastrem com nome e foto de perfil, troquem mensagens de texto e enviem figurinhas de forma rápida e intuitiva.",
+  "keywords": [
+    "Flutter",
+    "Node.js",
+    "MongoDB Atlas",
+    "Aplicativo de mensagens",
+    "Mensagens de texto",
+    "Mobile",
+    "Application"
+  ],
+  "homepage": "https://github.com/Otavio-Emanoel/TalkTo#readme",
+  "bugs": {
+    "url": "https://github.com/Otavio-Emanoel/TalkTo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Otavio-Emanoel/TalkTo.git"
+  },
+  "license": "ISC",
+  "author": "Otavio Emanoel",
+  "type": "commonjs",
+  "main": "index.ts",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
