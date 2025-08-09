@@ -13,7 +13,6 @@ import User from '../models/user.model';
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
-    // Exclui o usuário logado da lista
     // @ts-ignore
     const userId = (req.user && req.user.id) ? req.user.id : undefined;
     if (!userId) {

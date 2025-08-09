@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import chatRoutes from './routes/chat.routes';
+import messageRoutes from './routes/message.routes';
 
 dotenv.config();
 
@@ -13,6 +15,8 @@ app.use(express.json());
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
+app.use('/chats', chatRoutes);
+app.use('/messages', messageRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hello World');
