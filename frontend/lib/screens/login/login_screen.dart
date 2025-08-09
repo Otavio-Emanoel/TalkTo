@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +14,51 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   String? _email;
   String? _password;
+  bool _loading = false;
+  late final String _apiBaseUrl = dotenv.env['API_BASE_URL'] as String;
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+    setState(() => _loading = true);
+    try {
+      final resp = await http.post(
+        Uri.parse('$_apiBaseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': _email, 'password': _password}),
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        final token = data['token'];
+        // TODO: salvar token (ex: shared_preferences) para próximas chamadas
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Login bem-sucedido!')));
+        Navigator.pushReplacementNamed(
+          context,
+          '/home',
+          arguments: data['user'],
+        );
+      } else {
+        String msg = 'Erro ao fazer login';
+        try {
+          msg = jsonDecode(resp.body)['message'] ?? msg;
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Falha de rede: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,18 +101,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   backgroundColor: const Color(0xFF6C63FF),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    _formKey.currentState!.save();
-                    // Apenas validação local, sem integração
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Login realizado (simulado)!'),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Entrar', style: TextStyle(fontSize: 18)),
+                onPressed: _loading ? null : _submit,
+                child: _loading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Text('Entrar', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(height: 16),
               TextButton(
