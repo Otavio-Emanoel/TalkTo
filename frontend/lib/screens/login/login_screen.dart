@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,6 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         final token = data['token'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
         // TODO: salvar token (ex: shared_preferences) para próximas chamadas
         if (!mounted) return;
         ScaffoldMessenger.of(
