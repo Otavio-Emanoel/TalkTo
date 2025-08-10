@@ -12,17 +12,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<dynamic> _users = [];
-  List<dynamic> _allUsers = [];
+  List<dynamic> _users = []; // agora representa conversas exibidas
+  List<dynamic> _allUsers = []; // cache completo das conversas
   bool _loading = true;
   String? _error;
   final TextEditingController _searchCtrl = TextEditingController();
   bool _searching = false;
+  String? _myId; // id do usuário logado para marcar mensagens
 
   @override
   void initState() {
     super.initState();
-    _fetchUsers();
+    _fetchConversations();
     _searchCtrl.addListener(_onSearchChanged);
   }
 
@@ -43,38 +44,50 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       setState(() {
         _searching = true;
-        _users = _allUsers
-            .where(
-              (u) => (u['name'] ?? '').toString().toLowerCase().contains(q),
-            )
-            .toList();
+        _users = _allUsers.where((u) {
+          final name = (u['name'] ?? '').toString().toLowerCase();
+          final lastMsg = (u['lastMessage'] ?? '').toString().toLowerCase();
+          return name.contains(q) || lastMsg.contains(q);
+        }).toList();
       });
     }
   }
 
-  Future<void> _fetchUsers() async {
+  Future<void> _fetchConversations() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
+      final userId = prefs.getString('user_id');
+      _myId = userId;
       if (token == null) {
         if (mounted) Navigator.pushReplacementNamed(context, '/login');
         return;
       }
       final baseUrl = dotenv.env['API_BASE_URL'] as String;
       final resp = await http.get(
-        Uri.parse('$baseUrl/users'),
+        Uri.parse('$baseUrl/conversations'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
+        final data = jsonDecode(resp.body) as List;
+        // Garantir ordenação por lastMessageAt desc (caso backend já faça, mantém)
+        data.sort((a, b) {
+          final da =
+              DateTime.tryParse(a['lastMessageAt'] ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final db =
+              DateTime.tryParse(b['lastMessageAt'] ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return db.compareTo(da);
+        });
         setState(() {
-          _allUsers = List<dynamic>.from(data);
+          _allUsers = data;
           _users = _allUsers;
           _loading = false;
         });
       } else {
         setState(() {
-          _error = 'Erro ao carregar usuários';
+          _error = 'Erro ao carregar conversas';
           _loading = false;
         });
       }
@@ -86,19 +99,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openChat(dynamic user) {
-    final name = user['name'] ?? 'Sem nome';
-    final photo = user['photoURL'] ?? 'assets/icons/icon.png';
+  void _openChat(dynamic conv) {
+    final name = conv['name'] ?? 'Sem nome';
+    final photo = conv['photoURL'] ?? 'assets/icons/icon.png';
+    final contactId = conv['contactId'] ?? conv['id'] ?? conv['_id'];
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(
           contactName: name,
           contactPhoto: photo,
-          contactId: user['id'] ?? user['_id'],
+          contactId: contactId,
         ),
       ),
-    );
+    ).then((_) => _fetchConversations()); // atualiza lista ao voltar
   }
 
   Widget _buildHeader() {
@@ -140,15 +154,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.white,
                           size: 30,
                         ),
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/profile'),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          '/profile',
+                        ).then((_) => _fetchConversations()),
                         tooltip: 'Perfil',
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
+                  const SizedBox(height: 12),
+                  Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(18),
@@ -162,24 +177,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: TextField(
                             controller: _searchCtrl,
                             style: const TextStyle(color: Colors.white),
-                            cursorColor: Colors.white,
+                            cursorColor: Colors.white70,
                             decoration: const InputDecoration(
                               hintText: 'Buscar contatos...',
-                              hintStyle: TextStyle(color: Colors.white70),
                               border: InputBorder.none,
+                              hintStyle: TextStyle(color: Colors.white60),
                             ),
                           ),
                         ),
-                        if (_searchCtrl.text.isNotEmpty)
+                        if (_searching)
                           GestureDetector(
                             onTap: () {
                               _searchCtrl.clear();
-                              _onSearchChanged();
                             },
                             child: const Icon(
                               Icons.close,
                               color: Colors.white70,
-                              size: 20,
+                              size: 18,
                             ),
                           ),
                       ],
@@ -211,13 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   _error!,
                   style: const TextStyle(color: Colors.red, fontSize: 16),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: _fetchUsers,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63FF),
-                  ),
+                  onPressed: _fetchConversations,
                   child: const Text('Tentar novamente'),
                 ),
               ],
@@ -234,11 +246,9 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Icon(Icons.people_outline, size: 56, color: Colors.grey.shade400),
               const SizedBox(height: 12),
-              Text(
-                _searching
-                    ? 'Nenhum contato encontrado'
-                    : 'Sem contatos disponíveis',
-                style: const TextStyle(fontSize: 16, color: Colors.black54),
+              const Text(
+                'Sem contatos disponíveis',
+                style: TextStyle(fontSize: 16, color: Colors.black54),
               ),
             ],
           ),
@@ -246,19 +256,117 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-      sliver: SliverList.builder(
-        itemCount: _users.length,
-        itemBuilder: (context, index) {
-          final user = _users[index];
-          final name = user['name'] ?? 'Sem nome';
-          final photo = user['photoURL'] ?? 'assets/icons/icon.png';
-          return _UserCard(
-            name: name,
-            photo: photo,
-            onTap: () => _openChat(user),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final conv = _users[index];
+          final name = conv['name'] ?? 'Sem nome';
+          final photo = conv['photoURL'] ?? 'assets/icons/icon.png';
+          final lastMsg = conv['lastMessage'] ?? '';
+          final lastAtRaw = conv['lastMessageAt'];
+          DateTime? lastAt = DateTime.tryParse(lastAtRaw ?? '');
+          String timeLabel = '';
+          if (lastAt != null) {
+            final now = DateTime.now();
+            final isToday =
+                lastAt.year == now.year &&
+                lastAt.month == now.month &&
+                lastAt.day == now.day;
+            timeLabel = isToday
+                ? '${lastAt.hour.toString().padLeft(2, '0')}:${lastAt.minute.toString().padLeft(2, '0')}'
+                : '${lastAt.day.toString().padLeft(2, '0')}/${lastAt.month.toString().padLeft(2, '0')}';
+          }
+          final fromMe = conv['lastMessageFrom'] == _myId;
+          final preview = lastMsg.isEmpty
+              ? 'Sem mensagens ainda'
+              : (fromMe ? 'Você: ' : '') + lastMsg.toString();
+          return InkWell(
+            onTap: () => _openChat(conv),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundImage: photo.toString().startsWith('http')
+                        ? NetworkImage(photo)
+                        : AssetImage(photo) as ImageProvider,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF202020),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: lastMsg.isEmpty
+                                ? Colors.black38
+                                : Colors.black54,
+                            fontStyle: lastMsg.isEmpty
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        timeLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Placeholder para badge não lidas futuramente
+                      Container(
+                        height: 8,
+                        width: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.transparent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           );
-        },
+        }, childCount: _users.length),
       ),
     );
   }
@@ -268,104 +376,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F3F8),
       body: RefreshIndicator(
-        onRefresh: _fetchUsers,
-        displacement: 70,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [_buildHeader(), _buildBody()],
-        ),
+        onRefresh: _fetchConversations,
+        edgeOffset: 0,
+        child: CustomScrollView(slivers: [_buildHeader(), _buildBody()]),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF6C63FF),
-        onPressed: () {},
+        onPressed: () async {
+          final opened = await Navigator.pushNamed(context, '/contacts');
+          if (opened == true) {
+            _fetchConversations();
+          }
+        },
         child: const Icon(Icons.chat, color: Colors.white),
-      ),
-    );
-  }
-}
-
-class _UserCard extends StatelessWidget {
-  final String name;
-  final String photo;
-  final VoidCallback onTap;
-  const _UserCard({
-    required this.name,
-    required this.photo,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isNetwork = photo.startsWith('http');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Hero(
-                  tag: 'avatar_$name',
-                  child: CircleAvatar(
-                    radius: 30,
-                    backgroundImage: isNetwork
-                        ? NetworkImage(photo)
-                        : AssetImage(photo) as ImageProvider,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF222222),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Toque para abrir o chat',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Color(0xFF6C63FF),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

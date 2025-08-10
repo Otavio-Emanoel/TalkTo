@@ -12,6 +12,7 @@ import userRoutes from './routes/user.routes';
 import uploadRoutes from './routes/upload.routes';
 import chatRoutes from './routes/chat.routes';
 import messageRoutes from './routes/message.routes';
+import conversationRoutes from './routes/conversation.routes';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use('/users', userRoutes);
 app.use('/upload', uploadRoutes);
 app.use('/chats', chatRoutes);
 app.use('/messages', messageRoutes);
+app.use('/conversations', conversationRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hello World');
