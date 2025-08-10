@@ -5,6 +5,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import Message from './models/message.model';
+import path from 'path';
 
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -17,6 +18,7 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
+app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')));
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);

@@ -12,7 +12,8 @@ export const uploadPhoto = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
-    res.json({ message: 'Foto atualizada!', user });
+    // Inclui photoURL no topo para facilitar o cliente
+    res.json({ message: 'Foto atualizada!', photoURL, user });
   } catch (err) {
     res.status(500).json({ message: 'Erro ao fazer upload', error: err });
   }

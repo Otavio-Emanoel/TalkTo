@@ -6,6 +6,7 @@ export interface IUser extends Document {
   password: string;
   phone: string;
   photoURL?: string;
+  bio?: string; // nova bio
 }
 
 const UserSchema: Schema = new Schema({
@@ -13,7 +14,8 @@ const UserSchema: Schema = new Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String, required: true, unique: true },
-  photoURL: { type: String }
+  photoURL: { type: String },
+  bio: { type: String, maxlength: 280 } // limite simples
 });
 
 const User = mongoose.model<IUser>('User', UserSchema);

@@ -15,6 +15,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? email;
   String? photo;
   String? phone;
+  String? bio; // nova bio
   bool _loading = true;
   String? _error;
   late final String _apiBaseUrl = dotenv.env['API_BASE_URL'] as String;
@@ -49,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             email = data['email'] ?? email;
             photo = data['photoURL'] ?? photo;
             phone = data['phone'] ?? phone;
+            bio = data['bio'] ?? bio; // carregar bio
             _loading = false;
           });
         } else {
@@ -82,6 +84,389 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
   }
 
+  Future<void> _openEditModal() async {
+    final nameController = TextEditingController(text: name ?? '');
+    final emailController = TextEditingController(text: email ?? '');
+    final phoneController = TextEditingController(text: phone ?? '');
+    final photoUrlController = TextEditingController(
+      text: (photo != null && photo!.startsWith('http')) ? photo : '',
+    );
+    String tempPreview = photoUrlController.text.trim();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            void updatePreview(String value) {
+              String v = value.trim();
+              if (v.isNotEmpty && !v.startsWith('http')) {
+                // heurística simples: prefixar https
+                v = 'https://$v';
+              }
+              setModalState(() => tempPreview = v);
+            }
+
+            bool isValidUrl(String u) {
+              if (u.isEmpty) return false;
+              final uri = Uri.tryParse(u);
+              return uri != null &&
+                  (uri.isScheme('http') || uri.isScheme('https'));
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
+                left: 20,
+                right: 20,
+                top: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                    const Text(
+                      'Editar Perfil',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 92,
+                          height: 92,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xFF6C63FF),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.grey.shade200,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: isValidUrl(tempPreview)
+                              ? FadeInImage.assetNetwork(
+                                  placeholder: 'assets/icons/icon.png',
+                                  image: tempPreview,
+                                  fit: BoxFit.cover,
+                                  imageErrorBuilder: (_, __, ___) =>
+                                      const Center(
+                                        child: Icon(
+                                          Icons.broken_image,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                )
+                              : const Center(
+                                  child: Icon(
+                                    Icons.image_outlined,
+                                    size: 40,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: nameController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nome',
+                                ),
+                                textInputAction: TextInputAction.next,
+                              ),
+                              TextField(
+                                controller: emailController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email',
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                              ),
+                              TextField(
+                                controller: phoneController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Telefone',
+                                ),
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: photoUrlController,
+                      decoration: InputDecoration(
+                        labelText: 'URL da Foto (https://...)',
+                        suffixIcon: IconButton(
+                          icon: const Icon(
+                            Icons.refresh,
+                            color: Color(0xFF6C63FF),
+                          ),
+                          onPressed: () =>
+                              updatePreview(photoUrlController.text),
+                          tooltip: 'Atualizar preview',
+                        ),
+                      ),
+                      keyboardType: TextInputType.url,
+                      onChanged: updatePreview,
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Cancelar'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6C63FF),
+                            ),
+                            onPressed: () async {
+                              await _saveProfile(
+                                newName: nameController.text.trim(),
+                                newEmail: emailController.text.trim(),
+                                newPhone: phoneController.text.trim(),
+                                newPhotoUrl:
+                                    isValidUrl(photoUrlController.text.trim())
+                                    ? photoUrlController.text.trim()
+                                    : null,
+                              );
+                              if (!mounted) return;
+                              Navigator.of(ctx).pop();
+                            },
+                            child: const Text('Salvar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveProfile({
+    String? newName,
+    String? newEmail,
+    String? newPhone,
+    String? newPhotoUrl,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userId = prefs.getString('user_id');
+      if (token == null || userId == null) return;
+
+      final updateResp = await http.put(
+        Uri.parse('$_apiBaseUrl/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          if (newName != null && newName.isNotEmpty) 'name': newName,
+          if (newEmail != null && newEmail.isNotEmpty) 'email': newEmail,
+          if (newPhone != null && newPhone.isNotEmpty) 'phone': newPhone,
+          if (newPhotoUrl != null && newPhotoUrl.isNotEmpty)
+            'photoURL': newPhotoUrl,
+        }),
+      );
+      if (updateResp.statusCode == 200) {
+        final updated = jsonDecode(updateResp.body);
+        setState(() {
+          name = updated['name'] ?? name;
+          email = updated['email'] ?? email;
+          phone = updated['phone'] ?? phone;
+          if (newPhotoUrl != null && newPhotoUrl.isNotEmpty)
+            photo = newPhotoUrl;
+        });
+        await prefs.setString('user_name', name ?? '');
+        await prefs.setString('user_email', email ?? '');
+        await prefs.setString('user_phone', phone ?? '');
+        if (photo != null) await prefs.setString('user_photo', photo!);
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Perfil atualizado')));
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Falha ao atualizar (${updateResp.statusCode})'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+    }
+  }
+
+  Future<void> _openBioModal() async {
+    final bioController = TextEditingController(text: bio ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Editar Bio',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: bioController,
+                  maxLines: 5,
+                  minLines: 3,
+                  maxLength: 280,
+                  decoration: InputDecoration(
+                    labelText: 'Sua bio',
+                    alignLabelWithHint: true,
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: () async {
+                          await _saveBio(bioController.text.trim());
+                          if (!mounted) return;
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('Salvar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveBio(String newBio) async {
+    if (newBio.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bio não pode ser vazia.')));
+      return;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userId = prefs.getString('user_id');
+      if (token == null || userId == null) return;
+      final resp = await http.put(
+        Uri.parse('$_apiBaseUrl/users/$userId/bio'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'bio': newBio}),
+      );
+      if (resp.statusCode == 200) {
+        setState(() => bio = newBio);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Bio atualizada.')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Falha ao atualizar bio (${resp.statusCode}).'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+    }
+  }
+
   Widget _buildHeader(double width) {
     return Stack(
       clipBehavior: Clip.none,
@@ -101,12 +486,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           child: SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                icon: const Icon(Icons.logout, color: Colors.white),
-                onPressed: _logout,
-                tooltip: 'Sair',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Voltar',
+                    onPressed: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      } else {
+                        Navigator.of(context).pushReplacementNamed('/home');
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout, color: Colors.white),
+                    onPressed: _logout,
+                    tooltip: 'Sair',
+                  ),
+                ],
               ),
             ),
           ),
@@ -197,19 +601,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'Sobre',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6C63FF),
-                ),
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Sobre',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6C63FF),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.edit,
+                      size: 20,
+                      color: Color(0xFF6C63FF),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Editar bio',
+                    onPressed: _openBioModal,
+                  ),
+                ],
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
-                'Personalize seu perfil futuramente com uma bio ou status.',
-                style: TextStyle(
+                (bio != null && bio!.isNotEmpty)
+                    ? bio!
+                    : 'Adicione uma bio para personalizar seu perfil.',
+                style: const TextStyle(
                   fontSize: 14,
                   height: 1.4,
                   color: Colors.black54,
@@ -224,7 +646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Implementar edição de perfil
+                  _openEditModal();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF),
