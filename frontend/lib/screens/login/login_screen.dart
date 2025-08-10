@@ -31,8 +31,18 @@ class _LoginScreenState extends State<LoginScreen> {
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         final token = data['token'];
+        final user = data['user'];
+        // Salva token e id do usuário
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
+        if (user != null && user['id'] != null) {
+          await prefs.setString('user_id', user['id']);
+          await prefs.setString('user_name', user['name'] ?? '');
+          await prefs.setString('user_email', user['email'] ?? '');
+          if (user['photoURL'] != null) {
+            await prefs.setString('user_photo', user['photoURL']);
+          }
+        }
         // TODO: salvar token (ex: shared_preferences) para próximas chamadas
         if (!mounted) return;
         ScaffoldMessenger.of(

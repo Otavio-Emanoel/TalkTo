@@ -27,10 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       if (token == null) {
-        setState(() {
-          _error = 'Usuário não autenticado';
-          _loading = false;
-        });
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/login');
+        }
         return;
       }
       final baseUrl = dotenv.env['API_BASE_URL'] as String;
@@ -120,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (context) => ChatScreen(
                                 contactName: name,
                                 contactPhoto: photo,
+                                contactId: user['id'] ?? user['_id'],
                               ),
                             ),
                           );
