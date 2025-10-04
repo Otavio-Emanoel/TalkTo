@@ -175,8 +175,5 @@ Infra / Geral:
 2. Commits claros (mensagens descritivas)  
 3. Abrir Pull Request para `main`
 
-## Licença
-Projeto educacional / interno (definir futuramente).
-
 ---
 Mantido por: Otavio Emanoel
